@@ -131,15 +131,61 @@
 
         // Замените существующий обработчик клика на карту
         map.on("click", (e) => {
-            if (points.length >= 1) return; // теперь только одну точку можем выбрать (пункт Б)
             const [lng, lat] = e.lngLat;
-            points.push({ x: lng, y: lat });
-            const marker = new mapgl.Marker(map, {
-                coordinates: [lng, lat],
-                color: "red", // всегда красный, так как это пункт Б
-            });
-            markers.push(marker);
-            if (points.length === 1) getDirection(directionTypeSelector.value);
+            
+            // Проверяем есть ли уже точка А (из геолокации)
+            if (points.length === 0) {
+                // Если нет точки А, используем текущую геолокацию
+                if (userMarker) {
+                    const coords = userMarker.getCoordinates();
+                    points.push({ x: coords[0], y: coords[1] });
+                } else {
+                    points.push({ x: lng, y: lat });
+                }
+            }
+            
+            // Добавляем точку Б (пункт назначения)
+            if (points.length === 1) {
+                points.push({ x: lng, y: lat });
+                // Создаем красный маркер для точки назначения
+                const marker = new mapgl.Marker(map, {
+                    coordinates: [lng, lat],
+                    color: "red",
+                });
+                markers.push(marker);
+                // Строим маршрут
+                getDirection(directionTypeSelector.value);
+            }
+        });
+
+        // Добавьте обработчик для тач-событий
+        map.on("touchend", (e) => {
+            e.preventDefault(); // Предотвращаем стандартное поведение
+            const touch = e.touches[0] || e.changedTouches[0];
+            if (touch) {
+                const point = map.unproject([touch.clientX, touch.clientY]);
+                if (point) {
+                    const [lng, lat] = [point.lng, point.lat];
+                    // Такая же логика, как и в клике
+                    if (points.length === 0) {
+                        if (userMarker) {
+                            const coords = userMarker.getCoordinates();
+                            points.push({ x: coords[0], y: coords[1] });
+                        } else {
+                            points.push({ x: lng, y: lat });
+                        }
+                    }
+                    if (points.length === 1) {
+                        points.push({ x: lng, y: lat });
+                        const marker = new mapgl.Marker(map, {
+                            coordinates: [lng, lat],
+                            color: "red",
+                        });
+                        markers.push(marker);
+                        getDirection(directionTypeSelector.value);
+                    }
+                }
+            }
         });
 
         resetButton.onclick = () => {

@@ -321,21 +321,12 @@ const throttledDrawPath = throttle((coords) => {
     }
 }, 800);
 
-// Click / touch to set destination (B)
-function setDestination(lng, lat) {
-    // remove previous dest marker
-    markers.forEach(m => m.destroy());
-    markers = [];
-    points[1] = { x: lng, y: lat };
-    const m = new mapgl.Marker(map, { coordinates: [lng, lat], color: "red" });
-    markers.push(m);
-    getDirection(directionTypeSelector.value);
-}
-
+// Click on map - set destination B (disabled while navigating)
 map.on("click", (e) => {
+    if (isNavigating) return; // don't change points while navigating
     const [lng, lat] = e.lngLat;
+    // ensure A exists (try userMarker)
     if (!points[0]) {
-        // if no A yet, we'll still accept user's geolocation as A; but allow fallback
         if (userMarker) {
             const coords = userMarker.getCoordinates();
             points[0] = { x: coords[0], y: coords[1] };
@@ -346,8 +337,9 @@ map.on("click", (e) => {
     setDestination(lng, lat);
 });
 
+// Touch on mobile - set destination B (disabled while navigating)
 map.on("touchend", (e) => {
-    // touch events on mobile: get first touch coord relative to container
+    if (isNavigating) return;
     const touch = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]);
     if (!touch) return;
     const point = map.unproject([touch.clientX, touch.clientY]);
@@ -364,11 +356,27 @@ map.on("touchend", (e) => {
     setDestination(lng, lat);
 });
 
-// start/stop/reset
+// Start navigation button
 startButton.onclick = () => {
-    if (!points[1]) { infoPanel.textContent = "Выберите пункт назначения"; return; }
+    if (!points[1]) {
+        infoPanel.textContent = "Выберите пункт назначения";
+        return;
+    }
+    // ensure we have A
+    if (!points[0]) {
+        if (userMarker) {
+            const coords = userMarker.getCoordinates();
+            points[0] = { x: coords[0], y: coords[1] };
+        } else {
+            infoPanel.textContent = "Ожидание определения местоположения...";
+            return;
+        }
+    }
+
     isNavigating = true;
+    cameraFollowing = true;
     startButton.style.display = "none";
+    infoPanel.textContent = "Навигация запущена";
     updateInfoPanelSimple();
 };
 

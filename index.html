@@ -100,6 +100,9 @@
 const key = "e485191c-43bc-4296-8a7b-b671df9ceedd";
 const map = new mapgl.Map("map", {
     key, center: [74.612, 42.874], zoom: 13, pitch: 45, rotation: 35,
+        trafficControl: 'bottomRight',
+        zoomControl: null,
+         scaleControl: 'bottomRight',
 });
 
 // state
@@ -130,8 +133,12 @@ let cameraFollowing = true;
 const FOLLOW_DISTANCE = 0.0003; // degrees ~ ~30m depending; tuned for behind camera
 const FOLLOW_ZOOM = 18;
 const CAMERA_UPDATE_INTERVAL = 500;
-const DEVIATION_THRESHOLD_KM = 0.01; // 10 meters = 0.01 km
+const DEVIATION_THRESHOLD_KM = 0.2; // 100 meters = 0.1 km
 const CAR_ICON = "https://i0.wp.com/apptractor.ru/wp-content/uploads/2017/04/navi.png";
+
+// Add these constants after other constants
+const API_RETRY_DELAY = 1000; // 1 second between API calls
+let lastApiCall = 0;
 
 // helpers
 function throttle(func, limit) {
@@ -163,18 +170,35 @@ function getQuery(type) {
     };
 }
 
+// Add this helper function
+async function throttledFetch(url, options) {
+    const now = Date.now();
+    if (now - lastApiCall < API_RETRY_DELAY) {
+        await new Promise(resolve => setTimeout(resolve, API_RETRY_DELAY));
+    }
+    lastApiCall = Date.now();
+    return fetch(url, options);
+}
+
+// Replace getDirection function
 async function getDirection(type) {
     if (points.length < 2) return;
     resetButton.textContent = "Построение...";
     const body = getQuery(type);
     try {
-        const response = await fetch(`https://catalog.api.2gis.ru/${type}/6.0.0/global?key=${key}`, {
-            method: "POST", body: JSON.stringify(body),
-        });
+        const response = await throttledFetch(
+            `https://catalog.api.2gis.ru/${type}/6.0.0/global?key=${key}`, 
+            { method: "POST", body: JSON.stringify(body) }
+        );
         const json = await response.json();
-        directionsResult = Array.isArray(json.result) ? json.result : [];
         
-        // Automatically select fastest route (first one)
+        if (json.meta?.code === 429) {
+            // Rate limit hit - retry after delay
+            await new Promise(resolve => setTimeout(resolve, API_RETRY_DELAY));
+            return getDirection(type);
+        }
+
+        directionsResult = Array.isArray(json.result) ? json.result : [];
         activeRouteIndex = 0;
         directionItemSelector.innerHTML = '<option value="0">Быстрый маршрут</option>';
         directionItemSelector.value = 0;
@@ -184,7 +208,7 @@ async function getDirection(type) {
         startButton.style.display = "block";
         infoPanel.textContent = "Маршрут готов. Нажмите Начать навигацию.";
     } catch (e) {
-        console.error(e);
+        console.error('API Error:', e);
         resetButton.textContent = "Сбросить";
         infoPanel.textContent = "Ошибка построения маршрута";
     }
@@ -495,16 +519,26 @@ function startGeolocation() {
         }
 
         // if route exists, check deviation -> recalc
-        if (directionsResult.length && directionsResult[activeRouteIndex]) {
-            // build coords of active route (cached would be better)
+        if (directionsResult.length && directionsResult[activeRouteIndex] && isNavigating) {
             const routeCoords = [];
             const r = directionsResult[activeRouteIndex];
-            r.maneuvers.forEach(m => m.outcoming_path?.geometry?.forEach(g => routeCoords.push(...parseWKT(g.selection))));
+            r.maneuvers.forEach(m => m.outcoming_path?.geometry?.forEach(g => 
+                routeCoords.push(...parseWKT(g.selection))
+            ));
             const deviation = minDistanceToPath(userPos, routeCoords);
             if (deviation > DEVIATION_THRESHOLD_KM) {
-                // recalc route from current position
-                points[0] = { x: longitude, y: latitude };
-                getDirection(directionTypeSelector.value);
+                // Only recalculate if navigating and significantly off route (>100m)
+                clearRoutes(); // Clear old route first
+                previousPolyline?.destroy(); // Clear green path
+                pathCoords = []; // Reset path coords
+                points[0] = { x: longitude, y: latitude }; // Update start point
+                travelledDistance = 0; // Reset distance
+                
+                // Use throttled API call with delay
+                setTimeout(() => {
+                    infoPanel.textContent = "Пересчет маршрута...";
+                    getDirection(directionTypeSelector.value);
+                }, API_RETRY_DELAY);
             }
         }
 

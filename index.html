@@ -130,7 +130,8 @@ let cameraFollowing = true;
 const FOLLOW_DISTANCE = 0.0003; // degrees ~ ~30m depending; tuned for behind camera
 const FOLLOW_ZOOM = 18;
 const CAMERA_UPDATE_INTERVAL = 500;
-const DEVIATION_THRESHOLD_KM = 0.003; // 3 meters = 0.003 km
+const DEVIATION_THRESHOLD_KM = 0.01; // 10 meters = 0.01 km
+const CAR_ICON = "https://i0.wp.com/apptractor.ru/wp-content/uploads/2017/04/navi.png";
 
 // helpers
 function throttle(func, limit) {
@@ -172,9 +173,12 @@ async function getDirection(type) {
         });
         const json = await response.json();
         directionsResult = Array.isArray(json.result) ? json.result : [];
-        directionItemSelector.innerHTML = directionsResult.map((_, i) => `<option value="${i}">${i}</option>`).join("");
+        
+        // Automatically select fastest route (first one)
         activeRouteIndex = 0;
+        directionItemSelector.innerHTML = '<option value="0">Быстрый маршрут</option>';
         directionItemSelector.value = 0;
+        
         redrawRoutes();
         resetButton.textContent = "Сбросить";
         startButton.style.display = "block";
@@ -211,8 +215,17 @@ function drawRoute(route, index) {
 
 function redrawRoutes() {
     clearRoutes();
-    directionsResult.forEach((r, i) => drawnRoutes.push(drawRoute(r, i)));
-    // do not start any simulation — we use real geolocation
+    // Only draw active route
+    if (directionsResult[activeRouteIndex]) {
+        drawnRoutes.push(drawRoute(directionsResult[activeRouteIndex], 0));
+    }
+    // Clear previous path
+    if (previousPolyline) {
+        previousPolyline.destroy();
+        previousPolyline = null;
+    }
+    pathCoords = [];
+    travelledDistance = 0;
 }
 
 function keepOnlyActiveRoute(index) {
@@ -295,12 +308,7 @@ function totalDistanceFromRoute(route) {
 
 // camera follow strictly behind (throttled)
 const throttledCamera = throttle((pos, bearing) => {
-    const rad = bearing * Math.PI / 180;
-    const cameraPos = [
-        pos[0] - FOLLOW_DISTANCE * Math.sin(rad),
-        pos[1] - FOLLOW_DISTANCE * Math.cos(rad)
-    ];
-    map.setCenter(cameraPos, { duration: CAMERA_UPDATE_INTERVAL });
+    map.setCenter(pos, { duration: CAMERA_UPDATE_INTERVAL });
     if (is3dMode) {
         map.setRotation(bearing, { duration: CAMERA_UPDATE_INTERVAL });
         map.setPitch(60, { duration: CAMERA_UPDATE_INTERVAL });
@@ -437,11 +445,18 @@ function startGeolocation() {
         if (!userMarker) {
             userMarker = new mapgl.Marker(map, {
                 coordinates: userPos,
-                icon: "https://cdn-icons-png.flaticon.com/512/744/744465.png",
-                size: [28,28],
+                icon: CAR_ICON,
+                size: [32, 32], // larger size for car icon
+                rotation: 0 // will be updated based on movement
             });
         } else {
             userMarker.setCoordinates(userPos);
+        }
+
+        // update rotation based on movement
+        if (lastPos) {
+            const bearing = getBearing(lastPos, userPos);
+            userMarker.setRotation(bearing);
         }
 
         // initial A

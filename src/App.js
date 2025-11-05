@@ -71,8 +71,8 @@ function App() {
             newLocation.lng
           );
 
-          // если ушли дальше чем 20 метров — перестраиваем маршрут
-          if (dist > 20) {
+          // если ушли дальше чем 200 метров — перестраиваем маршрут
+          if (dist > 200) {
             lastValidLocation = newLocation;
             if (destination) {
               updateRoute(newLocation, destination);

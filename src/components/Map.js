@@ -15,7 +15,7 @@ export const Map = ({
   const destinationMarker = useRef(null);
   const routeLayer = useRef(null);
   const [mapgl, setMapgl] = useState(null);
-  const initialCenterSet = useRef(false);
+  const isFirstLoad = useRef(true);
 
   // Initialize map and load mapgl
   useEffect(() => {
@@ -23,7 +23,7 @@ export const Map = ({
       setMapgl(mapglInstance);
       mapInstance.current = new mapglInstance.Map(mapContainer.current, {
         key: apiKey,
-        center: [74.612, 42.874], // Default center
+        center: [74.612, 42.874],
         zoom: 16,
         pitch: 45,
         rotation: 0
@@ -35,15 +35,7 @@ export const Map = ({
     return () => mapInstance.current?.destroy();
   }, [apiKey, onMapClick]);
 
-  // Handle initial center on user location
-  useEffect(() => {
-    if (!mapInstance.current || !userLocation || initialCenterSet.current) return;
-
-    mapInstance.current.setCenter([userLocation.lng, userLocation.lat]);
-    initialCenterSet.current = true;
-  }, [userLocation]);
-
-  // Handle user location updates without re-centering
+  // Handle user location updates - only update marker
   useEffect(() => {
     if (!mapInstance.current || !mapgl || !userLocation) return;
 
@@ -56,13 +48,14 @@ export const Map = ({
       icon: 'https://docs.2gis.com/img/mapgl/marker.svg'
     });
 
-    // Only follow user location if navigation is active
-    if (isNavigating) {
+    // Only center map on first load
+    if (isFirstLoad.current) {
       mapInstance.current.setCenter([userLocation.lng, userLocation.lat]);
+      isFirstLoad.current = false;
     }
-  }, [userLocation, mapgl, isNavigating]);
+  }, [userLocation, mapgl]);
 
-  // Handle destination updates
+  // Handle destination marker
   useEffect(() => {
     if (!mapInstance.current || !mapgl || !destination) return;
 

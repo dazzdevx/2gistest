@@ -23,7 +23,6 @@ const ResetButton = styled.button`
 `;
 
 function App() {
-  const [mapInstance, setMapInstance] = useState(null);
   const [route, setRoute] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [destination, setDestination] = useState(null);

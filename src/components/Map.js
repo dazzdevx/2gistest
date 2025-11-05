@@ -37,7 +37,7 @@ export const Map = ({
         mapInstance.current.destroy();
       }
     };
-  }, [apiKey]);
+  }, [apiKey, onMapClick]);
 
   // Handle user location marker
   useEffect(() => {
@@ -85,9 +85,10 @@ export const Map = ({
       routeLayer.current.destroy();
     }
 
-    if (route.geometry && route.geometry.coordinates) {
+    if (route.waypoints && route.waypoints.length > 0) {
+      const coordinates = route.waypoints.map(wp => [wp.lon, wp.lat]);
       routeLayer.current = new mapgl.Polyline(mapInstance.current, {
-        coordinates: route.geometry.coordinates,
+        coordinates: coordinates,
         width: 6,
         color: '#4285F4',
       });

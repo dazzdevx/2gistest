@@ -1,14 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { load } from '@2gis/mapgl';
 
-export const Map = ({ 
-  apiKey, 
-  onMapClick,
-  userLocation, 
-  destination, 
-  route, 
-  isNavigating 
-}) => {
+export const Map = ({ apiKey, onMapClick, userLocation, destination, route, isNavigating }) => {
   const mapContainer = useRef(null);
   const mapInstance = useRef(null);
   const userMarker = useRef(null);
@@ -17,35 +10,32 @@ export const Map = ({
   const [mapgl, setMapgl] = useState(null);
   const isFirstLoad = useRef(true);
 
-  // Initialize map
+  // Инициализация карты
   useEffect(() => {
     load().then((mapglInstance) => {
       setMapgl(mapglInstance);
       mapInstance.current = new mapglInstance.Map(mapContainer.current, {
         key: apiKey,
         center: [74.612, 42.874],
-        zoom: 16,
-        pitch: 45,
-        rotation: 0
+        zoom: 15,
+        pitch: 0,
+        rotation: 0,
       });
 
-      mapInstance.current.on('click', onMapClick);
+      mapInstance.current.on('click', (e) => {
+        const { lng, lat } = e.lngLat;
+        onMapClick({ lngLat: { lng, lat } });
+      });
     });
 
-    return () => {
-      if (mapInstance.current) {
-        mapInstance.current.destroy();
-      }
-    };
+    return () => mapInstance.current?.destroy();
   }, [apiKey, onMapClick]);
 
-  // Handle user location marker
+  // Обновление позиции пользователя
   useEffect(() => {
     if (!mapInstance.current || !mapgl || !userLocation) return;
 
-    if (userMarker.current) {
-      userMarker.current.destroy();
-    }
+    if (userMarker.current) userMarker.current.destroy();
 
     userMarker.current = new mapgl.Marker(mapInstance.current, {
       coordinates: [userLocation.lng, userLocation.lat],
@@ -54,20 +44,25 @@ export const Map = ({
       },
     });
 
-    // Center map on first load only
-    if (isFirstLoad.current) {
+    // Следование за пользователем
+    if (isNavigating) {
+      mapInstance.current.easeTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: 18.5,
+        pitch: 60,
+        duration: 1000,
+      });
+    } else if (isFirstLoad.current) {
       mapInstance.current.setCenter([userLocation.lng, userLocation.lat]);
       isFirstLoad.current = false;
     }
-  }, [userLocation, mapgl]);
+  }, [userLocation, mapgl, isNavigating]);
 
-  // Handle destination marker
+  // Маркер пункта назначения
   useEffect(() => {
     if (!mapInstance.current || !mapgl || !destination) return;
 
-    if (destinationMarker.current) {
-      destinationMarker.current.destroy();
-    }
+    if (destinationMarker.current) destinationMarker.current.destroy();
 
     destinationMarker.current = new mapgl.Marker(mapInstance.current, {
       coordinates: [destination.lng, destination.lat],
@@ -77,18 +72,16 @@ export const Map = ({
     });
   }, [destination, mapgl]);
 
-  // Handle route display
+  // Отрисовка маршрута
   useEffect(() => {
     if (!mapInstance.current || !mapgl || !route) return;
 
-    if (routeLayer.current) {
-      routeLayer.current.destroy();
-    }
+    if (routeLayer.current) routeLayer.current.destroy();
 
-    if (route.waypoints && route.waypoints.length > 0) {
-      const coordinates = route.waypoints.map(wp => [wp.lon, wp.lat]);
+    if (route.waypoints?.length > 0) {
+      const coords = route.waypoints.map(wp => [wp.lon, wp.lat]);
       routeLayer.current = new mapgl.Polyline(mapInstance.current, {
-        coordinates: coordinates,
+        coordinates: coords,
         width: 6,
         color: '#4285F4',
       });

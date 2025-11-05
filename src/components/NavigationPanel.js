@@ -9,8 +9,7 @@ const Panel = styled.div`
   background: white;
   padding: 20px;
   border-radius: 20px 20px 0 0;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
 `;
 
 const StartButton = styled.button`
@@ -35,7 +34,7 @@ const DistanceText = styled.div`
   font-size: 14px;
 `;
 
-export const NavigationPanel = ({ route, isNavigating, onStartNavigation, userLocation }) => {
+export const NavigationPanel = ({ route, isNavigating, onStartNavigation }) => {
   if (!route) return null;
 
   const nextManeuver = route.maneuvers?.[0];
@@ -55,7 +54,7 @@ export const NavigationPanel = ({ route, isNavigating, onStartNavigation, userLo
       ) : (
         <>
           <DistanceText>
-            Расстояние: {(route.distance / 1000).toFixed(1)} км |
+            Расстояние: {(route.distance / 1000).toFixed(1)} км | 
             Время: {Math.round(route.duration / 60)} мин
           </DistanceText>
           <StartButton onClick={onStartNavigation}>

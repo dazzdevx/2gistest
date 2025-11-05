@@ -17,7 +17,7 @@ const ResetButton = styled.button`
   background: white;
   border: none;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   z-index: 1000;
   cursor: pointer;
 `;
@@ -27,82 +27,70 @@ function App() {
   const [userLocation, setUserLocation] = useState(null);
   const [destination, setDestination] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
+
+  // Расчёт расстояния между координатами (Haversine)
   function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // радиус Земли в метрах
+    const R = 6371e3;
     const φ1 = lat1 * Math.PI / 180;
     const φ2 = lat2 * Math.PI / 180;
     const Δφ = (lat2 - lat1) * Math.PI / 180;
     const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) *
-      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // расстояние в метрах
+    const a = Math.sin(Δφ / 2)**2 +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
-  // Watch user location
-  // watch user location
+  // Геолокация пользователя
   useEffect(() => {
     if (!navigator.geolocation) {
-      console.error('Геолокация не поддерживается');
+      alert('Геолокация не поддерживается этим устройством');
       return;
     }
 
     let lastValidLocation = null;
 
     const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const newLocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
+      (pos) => {
+        const newLoc = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
         };
-        setUserLocation(newLocation);
+        setUserLocation(newLoc);
 
         if (!isNavigating) return;
 
-        // вычисляем смещение от старой позиции
         if (lastValidLocation) {
           const dist = getDistance(
             lastValidLocation.lat,
             lastValidLocation.lng,
-            newLocation.lat,
-            newLocation.lng
+            newLoc.lat,
+            newLoc.lng
           );
 
-          // если ушли дальше чем 200 метров — перестраиваем маршрут
           if (dist > 200) {
-            lastValidLocation = newLocation;
-            if (destination) {
-              updateRoute(newLocation, destination);
-            }
+            lastValidLocation = newLoc;
+            if (destination) updateRoute(newLoc, destination);
           }
         } else {
-          lastValidLocation = newLocation;
+          lastValidLocation = newLoc;
         }
       },
-      (error) => console.error('Ошибка геолокации:', error),
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 5000
-      }
+      (err) => console.error('Ошибка геолокации:', err),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isNavigating, destination]);
 
-
+  // Построение маршрута через 2ГИС API
   const updateRoute = async (start, end) => {
     try {
       const response = await fetch(
         `https://routing.api.2gis.com/routing/7.0.0/global?key=${process.env.REACT_APP_DGIS_KEY}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             points: [
               { type: "stop", lon: start.lng, lat: start.lat },
@@ -116,13 +104,8 @@ function App() {
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`Ошибка сети: ${response.status}`);
-      }
-
       const data = await response.json();
-
-      if (data.result && data.result[0] && data.result[0].route) {
+      if (data.result?.[0]?.route) {
         setRoute(data.result[0].route);
       } else {
         console.error("Маршрут не найден:", data);
@@ -132,20 +115,14 @@ function App() {
     }
   };
 
-
+  // Клик по карте = выбор точки назначения
   const handleMapClick = async (e) => {
     if (isNavigating) return;
 
-    const clickedPoint = {
-      lng: e.lngLat.lng,
-      lat: e.lngLat.lat
-    };
+    const point = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+    setDestination(point);
 
-    setDestination(clickedPoint);
-
-    if (userLocation) {
-      await updateRoute(userLocation, clickedPoint);
-    }
+    if (userLocation) await updateRoute(userLocation, point);
   };
 
   const handleStartNavigation = () => {
@@ -169,9 +146,8 @@ function App() {
         route={route}
         isNavigating={isNavigating}
       />
-      <ResetButton onClick={handleReset}>
-        Сбросить
-      </ResetButton>
+      <ResetButton onClick={handleReset}>Сбросить</ResetButton>
+
       {destination && (
         <NavigationPanel
           route={route}

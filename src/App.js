@@ -27,13 +27,30 @@ function App() {
   const [userLocation, setUserLocation] = useState(null);
   const [destination, setDestination] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // радиус Земли в метрах
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // расстояние в метрах
+  }
 
   // Watch user location
+  // watch user location
   useEffect(() => {
     if (!navigator.geolocation) {
       console.error('Геолокация не поддерживается');
       return;
     }
+
+    let lastValidLocation = null;
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -43,9 +60,26 @@ function App() {
         };
         setUserLocation(newLocation);
 
-        // If navigating, update route
-        if (isNavigating && destination) {
-          updateRoute(newLocation, destination);
+        if (!isNavigating) return;
+
+        // вычисляем смещение от старой позиции
+        if (lastValidLocation) {
+          const dist = getDistance(
+            lastValidLocation.lat,
+            lastValidLocation.lng,
+            newLocation.lat,
+            newLocation.lng
+          );
+
+          // если ушли дальше чем 20 метров — перестраиваем маршрут
+          if (dist > 20) {
+            lastValidLocation = newLocation;
+            if (destination) {
+              updateRoute(newLocation, destination);
+            }
+          }
+        } else {
+          lastValidLocation = newLocation;
         }
       },
       (error) => console.error('Ошибка геолокации:', error),
@@ -58,6 +92,7 @@ function App() {
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isNavigating, destination]);
+
 
   const updateRoute = async (start, end) => {
     try {

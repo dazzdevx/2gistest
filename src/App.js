@@ -23,7 +23,6 @@ const ResetButton = styled.button`
 `;
 
 function App() {
-  const [mapInstance, setMapInstance] = useState(null);
   const [route, setRoute] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [destination, setDestination] = useState(null);
@@ -63,19 +62,33 @@ function App() {
   const updateRoute = async (start, end) => {
     try {
       const response = await fetch(
-        `https://routing.api.2gis.com/get_route?` +
-        `key=${process.env.REACT_APP_DGIS_KEY}&` +
-        `points=${start.lng},${start.lat}|${end.lng},${end.lat}&` +
-        `type=car`
+        `http://routing.api.2gis.com/routing/7.0.0/global?key=${process.env.REACT_APP_DGIS_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            points: [
+              { type: 'stop', lon: start.lng, lat: start.lat },
+              { type: 'stop', lon: end.lng, lat: end.lat }
+            ],
+            locale: 'ru',
+            transport: 'driving',
+            route_mode: 'fastest',
+            traffic_mode: 'jam',
+            output: 'detailed'
+          })
+        }
       );
-      
+
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
 
       const data = await response.json();
-      if (data.result && data.result.routes && data.result.routes[0]) {
-        setRoute(data.result.routes[0]);
+      if (data.result && data.result.length > 0) {
+        setRoute(data.result[0]);
       }
     } catch (error) {
       console.error('Ошибка построения маршрута:', error);

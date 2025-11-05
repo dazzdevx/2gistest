@@ -45,18 +45,18 @@ export const NavigationPanel = ({ route, isNavigating, onStartNavigation, userLo
     <Panel>
       {isNavigating ? (
         <>
-          <ManeuverText>{nextManeuver?.text || 'Двигайтесь по маршруту'}</ManeuverText>
+          <ManeuverText>{nextManeuver?.comment || 'Двигайтесь по маршруту'}</ManeuverText>
           <DistanceText>
-            {distance > 1000 
-              ? `${(distance / 1000).toFixed(1)} км` 
+            {distance > 1000
+              ? `${(distance / 1000).toFixed(1)} км`
               : `${Math.round(distance)} м`}
           </DistanceText>
         </>
       ) : (
         <>
           <DistanceText>
-            Расстояние: {(route.total_distance / 1000).toFixed(1)} км
-            Время: {Math.round(route.total_time / 60)} мин
+            Расстояние: {(route.distance / 1000).toFixed(1)} км |
+            Время: {Math.round(route.duration / 60)} мин
           </DistanceText>
           <StartButton onClick={onStartNavigation}>
             Начать навигацию

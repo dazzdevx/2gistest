@@ -184,6 +184,15 @@ async function throttledFetch(url, options) {
 async function getDirection(type) {
     if (points.length < 2) return;
     resetButton.textContent = "Построение...";
+    
+    // Clear previous path data
+    if (previousPolyline) {
+        previousPolyline.destroy();
+        previousPolyline = null;
+    }
+    pathCoords = [];
+    travelledDistance = 0;
+    
     const body = getQuery(type);
     try {
         const response = await throttledFetch(
@@ -315,10 +324,20 @@ function getBearing(start, end) {
 function updateInfoPanelSimple() {
     const total = directionsResult[activeRouteIndex] ? totalDistanceFromRoute(directionsResult[activeRouteIndex]) : 0;
     const remaining = Math.max(0, total - travelledDistance);
-    infoPanel.textContent =
-        `Пройдено: ${travelledDistance.toFixed(3)} км\n` +
-        `Осталось (по маршруту): ${remaining.toFixed(3)} км\n` +
-        (isNavigating ? `Навигация: Включена` : `Навигация: Ожидание`);
+    
+    let text = `Пройдено: ${travelledDistance.toFixed(2)} км\n` +
+               `Осталось: ${remaining.toFixed(2)} км\n` +
+               `${isNavigating ? 'Навигация: Включена' : 'Навигация: Ожидание'}`;
+    
+    // Add next maneuver info if navigating
+    if (isNavigating && lastPos && directionsResult[activeRouteIndex]) {
+        const nextManeuver = getNextManeuver(directionsResult[activeRouteIndex], lastPos);
+        if (nextManeuver) {
+            text += `\n\nЧерез ${nextManeuver.distance} км:\n${nextManeuver.text}`;
+        }
+    }
+    
+    infoPanel.textContent = text;
 }
 function totalDistanceFromRoute(route) {
     const coords = [];
@@ -436,8 +455,10 @@ resetButton.onclick = () => {
     points = [];
     markers.forEach(m => m.destroy()); markers = [];
     directionsResult = []; clearRoutes();
-    if (previousPolyline) { previousPolyline.destroy(); previousPolyline = null; }
-    if (userMarker) { userMarker.destroy(); userMarker = null; }
+    if (previousPolyline) { 
+        previousPolyline.destroy(); 
+        previousPolyline = null; 
+    }
     pathCoords = []; lastPos = null; travelledDistance = 0;
     isNavigating = false;
     startButton.style.display = "none";
@@ -572,6 +593,28 @@ function distanceToSegment(point, a, b) {
     t = Math.max(0, Math.min(1, t));
     const proj = [ x1 + t*dx, y1 + t*dy ];
     return distance(point, proj);
+}
+
+// Add after other helper functions
+function getNextManeuver(route, currentPos) {
+    if (!route || !route.maneuvers) return null;
+    
+    for (let i = 0; i < route.maneuvers.length; i++) {
+        const maneuver = route.maneuvers[i];
+        if (!maneuver.outcoming_path) continue;
+        
+        const coords = [];
+        maneuver.outcoming_path.geometry.forEach(g => coords.push(...parseWKT(g.selection)));
+        
+        // If we're closer than 100m to start of this maneuver
+        if (distance(currentPos, coords[0]) < 0.1) {
+            return {
+                text: maneuver.text,
+                distance: distance(currentPos, coords[0]).toFixed(2)
+            };
+        }
+    }
+    return null;
 }
 </script>
 </body>

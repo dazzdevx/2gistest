@@ -7,7 +7,6 @@ const AppContainer = styled.div`
   width: 100vw;
   height: 100vh;
   position: relative;
-  overflow: hidden;
 `;
 
 const ResetButton = styled.button`
@@ -20,6 +19,7 @@ const ResetButton = styled.button`
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   z-index: 1000;
+  cursor: pointer;
 `;
 
 function App() {
@@ -29,53 +29,83 @@ function App() {
   const [destination, setDestination] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
 
+  // Watch user location
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (error) => console.error(error),
-        { enableHighAccuracy: true }
-      );
-
-      return () => navigator.geolocation.clearWatch(watchId);
+    if (!navigator.geolocation) {
+      console.error('Геолокация не поддерживается');
+      return;
     }
-  }, []);
 
-  const handleMapClick = (e) => {
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const newLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        setUserLocation(newLocation);
+        
+        // If navigating, update route
+        if (isNavigating && destination) {
+          updateRoute(newLocation, destination);
+        }
+      },
+      (error) => console.error('Ошибка геолокации:', error),
+      { 
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 5000
+      }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isNavigating, destination]);
+
+  const updateRoute = async (start, end) => {
+    try {
+      const response = await fetch(
+        `https://routing.api.2gis.com/get_route?` +
+        `key=${process.env.REACT_APP_DGIS_KEY}&` +
+        `points=${start.lng},${start.lat}|${end.lng},${end.lat}&` +
+        `type=car`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      if (data.result && data.result.routes && data.result.routes[0]) {
+        setRoute(data.result.routes[0]);
+      }
+    } catch (error) {
+      console.error('Ошибка построения маршрута:', error);
+    }
+  };
+
+  const handleMapClick = async (e) => {
     if (isNavigating) return;
-    setDestination({
+    
+    const clickedPoint = {
       lng: e.lngLat.lng,
       lat: e.lngLat.lat
-    });
+    };
+    
+    setDestination(clickedPoint);
+    
+    if (userLocation) {
+      await updateRoute(userLocation, clickedPoint);
+    }
+  };
+
+  const handleStartNavigation = () => {
+    if (!userLocation || !destination) return;
+    setIsNavigating(true);
   };
 
   const handleReset = () => {
     setDestination(null);
     setRoute(null);
     setIsNavigating(false);
-  };
-
-  const handleStartNavigation = async () => {
-    if (!userLocation || !destination) return;
-    
-    try {
-      const directions = await fetch(
-        `https://routing.api.2gis.com/get_route?` +
-        `key=${process.env.REACT_APP_DGIS_KEY}&` +
-        `points=${userLocation.lng},${userLocation.lat}|${destination.lng},${destination.lat}&` +
-        `type=car`
-      ).then(res => res.json());
-
-      setRoute(directions.result);
-      setIsNavigating(true);
-    } catch (error) {
-      console.error('Failed to get route:', error);
-    }
   };
 
   return (

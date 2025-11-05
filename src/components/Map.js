@@ -17,7 +17,7 @@ export const Map = ({
   const [mapgl, setMapgl] = useState(null);
   const isFirstLoad = useRef(true);
 
-  // Initialize map and load mapgl
+  // Initialize map
   useEffect(() => {
     load().then((mapglInstance) => {
       setMapgl(mapglInstance);
@@ -32,10 +32,14 @@ export const Map = ({
       mapInstance.current.on('click', onMapClick);
     });
 
-    return () => mapInstance.current?.destroy();
-  }, [apiKey, onMapClick]);
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.destroy();
+      }
+    };
+  }, [apiKey]);
 
-  // Handle user location updates - only update marker
+  // Handle user location marker
   useEffect(() => {
     if (!mapInstance.current || !mapgl || !userLocation) return;
 
@@ -45,10 +49,12 @@ export const Map = ({
 
     userMarker.current = new mapgl.Marker(mapInstance.current, {
       coordinates: [userLocation.lng, userLocation.lat],
-      icon: 'https://docs.2gis.com/img/mapgl/marker.svg'
+      icon: {
+        html: `<div style="width: 20px; height: 20px; background: #4285F4; border-radius: 50%; border: 3px solid white;"></div>`,
+      },
     });
 
-    // Only center map on first load
+    // Center map on first load only
     if (isFirstLoad.current) {
       mapInstance.current.setCenter([userLocation.lng, userLocation.lat]);
       isFirstLoad.current = false;
@@ -64,11 +70,14 @@ export const Map = ({
     }
 
     destinationMarker.current = new mapgl.Marker(mapInstance.current, {
-      coordinates: [destination.lng, destination.lat]
+      coordinates: [destination.lng, destination.lat],
+      icon: {
+        html: `<div style="width: 20px; height: 20px; background: #DB4437; border-radius: 50%; border: 3px solid white;"></div>`,
+      },
     });
   }, [destination, mapgl]);
 
-  // Handle route updates
+  // Handle route display
   useEffect(() => {
     if (!mapInstance.current || !mapgl || !route) return;
 
@@ -76,11 +85,13 @@ export const Map = ({
       routeLayer.current.destroy();
     }
 
-    routeLayer.current = new mapgl.Polyline(mapInstance.current, {
-      coordinates: route.geometry.coordinates,
-      width: 5,
-      color: '#2196f3'
-    });
+    if (route.geometry && route.geometry.coordinates) {
+      routeLayer.current = new mapgl.Polyline(mapInstance.current, {
+        coordinates: route.geometry.coordinates,
+        width: 6,
+        color: '#4285F4',
+      });
+    }
   }, [route, mapgl]);
 
   return <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />;

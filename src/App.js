@@ -43,14 +43,14 @@ function App() {
           lng: position.coords.longitude
         };
         setUserLocation(newLocation);
-        
+
         // If navigating, update route
         if (isNavigating && destination) {
           updateRoute(newLocation, destination);
         }
       },
       (error) => console.error('Ошибка геолокации:', error),
-      { 
+      {
         enableHighAccuracy: true,
         maximumAge: 0,
         timeout: 5000
@@ -63,35 +63,52 @@ function App() {
   const updateRoute = async (start, end) => {
     try {
       const response = await fetch(
-        `https://routing.api.2gis.com/get_route?` +
-        `key=${process.env.REACT_APP_DGIS_KEY}&` +
-        `points=${start.lng},${start.lat}|${end.lng},${end.lat}&` +
-        `type=car`
+        `https://routing.api.2gis.com/routing/7.0.0/global?key=${process.env.REACT_APP_DGIS_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            points: [
+              { type: "stop", lon: start.lng, lat: start.lat },
+              { type: "stop", lon: end.lng, lat: end.lat }
+            ],
+            locale: "ru",
+            transport: "driving",
+            route_mode: "fastest",
+            traffic_mode: "jam"
+          })
+        }
       );
-      
+
       if (!response.ok) {
-        throw new Error('Network response was not ok');
+        throw new Error(`Ошибка сети: ${response.status}`);
       }
 
       const data = await response.json();
-      if (data.result && data.result.routes && data.result.routes[0]) {
-        setRoute(data.result.routes[0]);
+
+      if (data.result && data.result[0] && data.result[0].route) {
+        setRoute(data.result[0].route);
+      } else {
+        console.error("Маршрут не найден:", data);
       }
     } catch (error) {
-      console.error('Ошибка построения маршрута:', error);
+      console.error("Ошибка построения маршрута:", error);
     }
   };
 
+
   const handleMapClick = async (e) => {
     if (isNavigating) return;
-    
+
     const clickedPoint = {
       lng: e.lngLat.lng,
       lat: e.lngLat.lat
     };
-    
+
     setDestination(clickedPoint);
-    
+
     if (userLocation) {
       await updateRoute(userLocation, clickedPoint);
     }
@@ -110,7 +127,7 @@ function App() {
 
   return (
     <AppContainer>
-      <Map 
+      <Map
         apiKey={process.env.REACT_APP_DGIS_KEY}
         onMapClick={handleMapClick}
         userLocation={userLocation}
